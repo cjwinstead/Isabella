@@ -121,6 +121,79 @@ function translate_program(data,d)
 end
 
 
+function timer_source()
+    """
+`timescale 1ns/1ps
+
+// timer: trigger alarm after given number of clock cycles
+
+module timer (
+	      input 	  clk,
+	      input 	  clr,
+	      input [1:0] scale, // 0(us),1(ms),2(s)
+	      input [7:0] duration,
+	      output reg  t
+	 );
+
+   reg [7:0] 		 clkcount;
+   reg [9:0] 		 uscount;
+   reg [9:0] 		 mscount;
+   reg [7:0] 		 scount;
+   
+   initial begin
+      t = 0;
+      clkcount = 0;
+      uscount = 0;
+      mscount = 0;
+      scount = 0;
+   end
+
+   always @(posedge clk) begin
+      if (clr) begin
+	 // Reset behavior:
+	 t        <= 0;
+	 clkcount <= 0;
+	 uscount  <= 0;
+	 mscount  <= 0;
+	 scount   <= 0;
+	 
+      end
+      else begin
+	 // Normal behavior:
+	 if (clkcount == 100) begin
+	    clkcount <= 0;
+
+	    if ((scale == 0) && (uscount == duration) ||
+		(scale == 1) && (mscount == duration) ||
+		(scale == 2) && (scount == duration)
+		) begin
+	       t <= 1;	       
+	    end
+	    else if (uscount == 1000) begin
+	       uscount <= 0;
+	       if (mscount == 1000) begin
+		  mscount <= 0;		  
+		  scount <= scount + 1;
+	       end
+	       else
+		 mscount <= mscount + 1;
+	    end	    	      
+	    else begin
+	       uscount++;	       
+	    end
+	 end
+	 else begin
+	    clkcount++;	    
+	 end
+      end
+   end
+   
+
+endmodule
+    """
+end
+
+
 function generate_verilog(data)
     s=string("""
 `timescale 1ns/1ps
@@ -319,7 +392,11 @@ function generate_controller_project(data)
                                        "contents"=>translate_program(data,command_code_dict(data)))
     
 
-        
+
+    # Include timer module source
+    timer_source = Dict{String}{String}("filename"=>"src/timer.sv",
+                                        "contents"=>timer_source())
+    
     # Generate controller source
     controller_source = Dict{String}{String}("filename"=>string("src/",data["module"],".sv"),
                                        "contents"=>generate_verilog(data))
@@ -350,6 +427,7 @@ function generate_controller_project(data)
 
     return [codetable,    
             program_rom,
+            timer_source,
             controller_source,
             command_param_table,
             command_implementation,
@@ -366,6 +444,7 @@ export print_command_code_table
 export command_code_dict
 export translate_program
 export generate_verilog
+export timer_source
 export generate_command_source
 export print_command_code_parameters
 export generate_controller_project
