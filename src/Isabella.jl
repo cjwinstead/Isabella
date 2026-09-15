@@ -57,6 +57,104 @@ end
 end
 
 
+function register_command_codes() 
+    s=string("""
+localparam LOAD_A  = 8'h11;
+localparam LOAD_B  = 8'h12;
+localparam INCR_B  = 8'h13;  // B++
+localparam DECR_B  = 8'h14;  // B--
+localparam ADD_AB  = 8'h15;  // B <= A+B
+localparam SUB_AB  = 8'h16;  // B <= A-B
+localparam SWAP_AB = 8'h17;  // B <= A; A <= B;
+localparam JZ      = 8'h18;  // Jump if B==0
+localparam JLZ     = 8'h19;  // Jump if B<0
+localparam JGZ     = 8'h1A;  // Jump if B>0
+""")
+    return s
+end
+
+
+function register_command_source()
+    return string("""
+LOAD_A: begin
+   if (data_bytes == 1) begin
+      _A    <= data;
+      state <= CMD_DONE;
+   end else begin
+      padr++;   
+      state <= DATA_BYTE;
+   end
+end 
+LOAD_B: begin
+   if (data_bytes == 1) begin
+      _B    <= data;
+      state <= CMD_DONE;
+   end else begin
+      padr++;   
+      state <= DATA_BYTE;
+   end
+end
+INCR_B: begin
+   _B++;
+   state <= CMD_DONE;
+end
+DECR_B: begin
+   _B--;
+   state <= CMD_DONE;
+end
+ADD_AB: begin
+   _B <= _A + _B;
+   state <= CMD_DONE;
+end 
+SUB_AB: begin
+   _B <= _A - _B;
+   state <= CMD_DONE;
+end 
+SWAP_AB: begin
+   _B <= _A;
+   _A <= _B;
+   state <= CMD_DONE;
+end 
+JZ: begin
+   if ((data_bytes == 1) && (_B==0)) begin
+      state <= CMD_START;
+      padr  <= data;
+      cmd   <= pmem[data];
+      data_bytes <= 0;
+   end
+   else begin
+      padr <= padr + 1;      
+      state <= DATA_BYTE;
+   end   
+end
+JLZ: begin
+   if ((data_bytes == 1) && (_B<0)) begin
+      state <= CMD_START;
+      padr  <= data;
+      cmd   <= pmem[data];
+      data_bytes <= 0;
+   end
+   else begin
+      padr <= padr + 1;      
+      state <= DATA_BYTE;
+   end   
+end
+JGZ: begin
+   if ((data_bytes == 1) && (_B>0)) begin
+      state <= CMD_START;
+      padr  <= data;
+      cmd   <= pmem[data];
+      data_bytes <= 0;
+   end
+   else begin
+      padr <= padr + 1;      
+      state <= DATA_BYTE;
+   end   
+end
+""")
+end
+
+
 # assign hex codes to commands
 function generate_command_codes!(data)
     pfx=data["hex_prefix"]
@@ -87,6 +185,17 @@ function command_code_dict(data)
     d["SLEEP_US"]="01"
     d["SLEEP_MS"]="02"
     d["SLEEP_S"]="03"
+
+    d["LOAD_A"]="11"
+    d["LOAD_B"]="12"
+    d["INCR_B"]="13"
+    d["DECR_B"]="14"
+    d["ADD_AB"]="15"
+    d["SUB_AB"]="16"
+    d["SWAP_AB"]="17"
+    d["JZ"]="18"
+    d["JLZ"]="19"
+    d["JGZ"]="1A"
     
     for x in data["commands"]
         d[x["name"]]=x["hex"]
@@ -211,6 +320,8 @@ module """,data["module"],"""
    // program memory
    reg [7:0] 	     pmem[255:0];
 
+   // program registers
+   reg [7:0]         _A, _B;
    
    reg [2:0] 	     state;
    reg [7:0] 	     padr;  // program memory address pointer
@@ -394,8 +505,8 @@ function generate_controller_project(data)
 
 
     # Include timer module source
-    timer_source = Dict{String}{String}("filename"=>"src/timer.sv",
-                                        "contents"=>timer_source())
+    timer_module_source = Dict{String}{String}("filename"=>"src/timer.sv",
+                                               "contents"=>timer_source())
     
     # Generate controller source
     controller_source = Dict{String}{String}("filename"=>string("src/",data["module"],".sv"),
@@ -424,21 +535,34 @@ function generate_controller_project(data)
     control_flow_param_table = Dict{String}{String}("filename"=>string("inc/flow_command_codes.sv"),
                                                     "contents"=>flow_command_codes() )
 
+    # Generate source for register commands
+    reg_command_source = Dict{String}{String}("filename"=>string("inc/register_commands.sv"),
+                                               "contents"=>register_command_source() )
+
+
+    # Generate localparam definitions for register commands
+    reg_param_table = Dict{String}{String}("filename"=>string("inc/register_command_codes.sv"),
+                                                    "contents"=>register_command_codes() )
+    
 
     return [codetable,    
             program_rom,
-            timer_source,
+            timer_module_source,
             controller_source,
             command_param_table,
             command_implementation,
             control_flow_source,
-            control_flow_param_table
+            control_flow_param_table,
+            reg_command_source,
+            reg_param_table
             ]    
 end
 
 
 export flow_command_codes 
 export flow_command_source
+export register_command_codes 
+export register_command_source
 export generate_command_codes!
 export print_command_code_table
 export command_code_dict
