@@ -155,13 +155,13 @@ end
 end
 
 
-# assign hex codes to commands
+# assign hex codes to commands -- can have up to 16 custom commands
 function generate_command_codes!(data)
     pfx=data["hex_prefix"]
     n=0
 
     for x in data["commands"]
-        x["hex"] = string(pfx,n)
+        x["hex"] = string(pfx,string(n;base=16))
         n=n+1
     end
 end
@@ -218,7 +218,7 @@ function translate_program(data,d)
             if (haskey(d,c[2]))
                 s=string(s,d[c[2]],"\n")
             else
-                s=string(s,c[2],"\n")
+                s=string(s,c[2],"\n")   # should be a number if not a recognized command
             end
         end
     end
@@ -344,6 +344,7 @@ module """,data["module"],"""
 
    // import list of command codes and aliases:
    `include "inc/flow_command_codes.sv"
+   `include "inc/register_command_codes.sv"
    `include "inc/""",data["module"],"""_command_codes.sv"
 
    initial begin
@@ -395,6 +396,7 @@ module """,data["module"],"""
 	   case (cmd)
 	     // import program control commands
              `include "inc/flow_commands.sv"
+             `include "inc/register_commands.sv"
              `include "inc/""",data["module"],"""_commands.sv"
 	   endcase
 	end
