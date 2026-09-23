@@ -121,8 +121,9 @@ JZ: begin
       padr  <= data;
       cmd   <= pmem[data];
       data_bytes <= 0;
-   end
-   else begin
+   end else if ((data_bytes == 1) && (_B!=0)) begin
+      state <= CMD_DONE;
+   end else begin
       padr <= padr + 1;      
       state <= DATA_BYTE;
    end   
@@ -133,20 +134,27 @@ JLZ: begin
       padr  <= data;
       cmd   <= pmem[data];
       data_bytes <= 0;
-   end
-   else begin
+   end else if ((data_bytes == 1) && (_B>=0)) begin
+      state <= CMD_DONE;
+   end else begin
       padr <= padr + 1;      
       state <= DATA_BYTE;
    end   
 end
 JGZ: begin
-   if ((data_bytes == 1) && (_B>0)) begin
-      state <= CMD_START;
-      padr  <= data;
-      cmd   <= pmem[data];
-      data_bytes <= 0;
-   end
-   else begin
+   if (data_bytes == 1) begin
+      if (_B > 0) begin
+         state <= CMD_START;
+         padr  <= data;
+         cmd   <= pmem[data];
+         data_bytes <= 0;
+      end else begin
+         state <= CMD_START;
+         data_bytes <= 0;
+         padr <= padr + 1;
+         cmd <= pmem[padr+1];
+      end
+   end else begin
       padr <= padr + 1;      
       state <= DATA_BYTE;
    end   
@@ -218,7 +226,7 @@ function translate_program(data,d)
             if (haskey(d,c[2]))
                 s=string(s,d[c[2]],"\n")
             else
-                s=string(s,c[2],"\n")   # should be a number if not a recognized command
+                s=string(s,string(parse(Int64,c[2]);base=16),"\n")   # should be a number if not a recognized command, assumed decimal format, output always hex
             end
         end
     end

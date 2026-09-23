@@ -1,0 +1,154 @@
+`timescale 1ns/1ps
+
+module  top (
+	     input clk,
+	     input rst,
+	     input start,
+	     input [15:0] sw,
+	     output [15:0] led,
+      output [3:0] an, 
+      output [6:0] seg,
+      output       dp
+);
+
+   reg		   intr;
+   reg [7:0]	   iadr;
+   
+   reg [15:0]	   data_in;
+
+   wire		   db_start;
+   reg [7:0]	   selected_program;
+
+   reg [15:0]	   din;  // Number to display
+   reg		   bcd;  // 1: Decimal format 0: Hex format
+   reg [1:0]	   dec;  // Decimal point position 0,1,2, or 3
+   reg		   enable; // Turn display on(1) or off(0)
+
+   wire [3:0]	   ones;
+   wire [3:0]	   tens;
+   wire [3:0]	   hundreds;
+   wire [3:0]	   thousands;
+
+   SevenSegmentDriver SevSeg 
+     (
+      .clk(clk),
+      .din(din),
+      .bcd(bcd),
+      .dec(dec),
+      .enable(enable),
+      .an(an), 
+      .seg(seg),
+      .dp(dp),
+      .ones(ones),
+      .tens(tens),
+      .hundreds(hundreds),
+      .thousands(thousands)
+      );
+   
+   led_controller_with_multiple_programs led_controller_with_multiple_programs_inst 
+     (
+      .clk(clk),
+      .rst(rst),
+      .intr(intr),
+      .iadr(iadr),
+      .ready(ready),
+      .data_in(data_in),
+      .led(led)
+      );
+
+   debouncer db1 (
+		  .clk(clk),
+		  .rst(rst),
+		  .btn(start),
+		  .db(db_start)
+		  );
+
+   localparam	   NUM_PROGRAMS = 21;   
+   reg [7:0]	   program_iadr[NUM_PROGRAMS-1:0] ;
+//= '{8'd0,8'd9,8'd10,8'd13,8'd15,8'd24,8'd33,8'd35,8'd86,8'd92};
+   				   
+
+   reg		   state;
+   localparam	   RUNNING = 0;
+   localparam	   LOADING = 1;
+   
+   initial begin
+      selected_program = 0;
+      state   = LOADING;
+      iadr    = 0;
+      
+      bcd     = 1;
+      enable  = 1;
+      dec     = 0;
+
+      program_iadr[0] = 0;
+      program_iadr[1] = 9;
+      program_iadr[2] = 11;
+      program_iadr[3] = 13;
+      program_iadr[4] = 15;
+      program_iadr[5] = 24;
+      program_iadr[6] = 33;
+      program_iadr[7] = 35;
+      program_iadr[8] = 86;
+      program_iadr[9] = 92;
+      program_iadr[10] = 100;
+      program_iadr[11] = 109;
+      program_iadr[12] = 118;
+      program_iadr[13] = 127;
+      program_iadr[14] = 136;
+      program_iadr[15] = 147;
+      program_iadr[16] = 197;
+      program_iadr[17] = 213;
+      program_iadr[18] = 230;
+      program_iadr[19] = 244;
+      program_iadr[20] = 252;
+      
+   end
+
+   always @(posedge clk) begin
+      data_in <= sw;
+      //din     <= iadr;
+      din     <= selected_program; // display on 7-segment
+      dec     <= state;
+      
+      if (rst) begin
+	 state            <= LOADING;
+	 iadr             <= 0;
+	 intr             <= 0;	 
+	 selected_program <= 0;
+	 bcd     <= 1;
+	 enable  <= 1;
+	 //dec     <= 0;
+
+      end else begin
+	 case (state)
+	   LOADING: begin
+	      if (ready) begin
+		 intr <= 1;
+		 state <= RUNNING;
+	      end else begin
+		 intr <= 0;
+	      end
+	   end // case: LOADING
+	   RUNNING: begin
+	      intr <= 0;	      
+	      if (db_start) begin
+		 if (selected_program < NUM_PROGRAMS-1) begin
+		    selected_program <= selected_program + 1;
+		    iadr  <= program_iadr[selected_program + 1];
+		 end
+		 else begin
+		    selected_program <= 0;
+		    iadr  <= program_iadr[0];
+		 end
+		 state <= LOADING;		 
+	      end
+	   end
+	 endcase // case (state)
+      end // else: !if(rst)
+      
+   end
+   
+   
+
+endmodule //

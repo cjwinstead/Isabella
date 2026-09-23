@@ -1,0 +1,62 @@
+`timescale 1ns/1ps
+
+
+module debouncer (
+		  input clk,
+		  input rst,
+		  input btn,
+		  output reg db
+);
+
+
+   localparam		     WAIT = 0;
+   localparam		     PRESS = 1;
+   localparam		     RELEASE = 2;
+
+   reg [1:0]		     state;   
+   reg [100:0]		     buff;
+   
+   initial begin
+      db = 0;
+      buff = 0;
+      state = WAIT;      
+   end
+
+   always @(posedge clk) begin
+      if (rst) begin
+	 buff  <= 0;
+	 state <= WAIT;
+	 db    <= 0;	 
+      end
+      else begin
+	 case (state)
+	   WAIT: begin
+	      db <= 0;
+	      if (&buff) begin
+		 db <= 1;		 
+		 state <= PRESS;
+	      end else
+		buff[100:1] <= {buff[99:0],btn};	      
+	   end
+	   PRESS: begin
+	      db <= 0;
+	      if (&~buff)
+		state <= RELEASE;
+	      else
+		buff[100:1] <= {buff[99:0],btn};     
+	   end
+	   RELEASE: begin
+	      buff  <= 0;
+	      state <= WAIT;	      
+	   end
+	   default: begin
+	      db    <= 0;
+	      state <= WAIT;
+	      buff  <= 0;	      
+	   end	     
+	 endcase
+      end
+   end
+   
+
+endmodule //
